@@ -58,7 +58,7 @@ class MDbConnection extends CDbConnection {
      * @var array 数据库读操作的SQL前缀（前4个字符）
      */
     private $_readSqlPrefix = array(
-        'SELE', 'DESC', 'SHOW'
+        'SELE'
     );
 
     /**
@@ -110,13 +110,12 @@ class MDbConnection extends CDbConnection {
             
             foreach ($this->slaves as $slaveConfig) {
                 if($this->checkSlaveDb($slaveConfig['connectionString'])) continue; //检查是否在故障期间
-                if ($this->isAutoExtendsProperty) {
-                    // 自动属性继承
+                if ($this->isAutoExtendsProperty) {// 自动属性继承
                     foreach ($this->_autoExtendsProperty as $property) {
                         isset($slaveConfig[$property]) || $slaveConfig[$property] = $this->$property;
                     }
                 }
-
+                
                 $slaveConfig['class'] = 'MDbConnection';
                 try {
                     $slave = Yii::createComponent($slaveConfig);
@@ -147,12 +146,30 @@ class MDbConnection extends CDbConnection {
     private function checkSlaveDb($connectionString, $set=false){
         if(!$this->checkSlave) return false;
         if(!isset(Yii::app()->cache)) return false;
+        $cacehModel = Yii::app()->cache;
         $cacheKeyFix = 'slave_db_connect_fail_keyfix_'.$connectionString;
         if(!$set) {//获取 存在值则说明有过失败情况
-            return Yii::app()->cache->get($cacheKeyFix);
+            return $cacehModel->get($cacheKeyFix);
         } else {//设置
-            return Yii::app()->cache->set($cacheKeyFix, 1, $this->checkSlaveTime);
+            return $cacehModel->set($cacheKeyFix, 1, $this->checkSlaveTime);
         }
     }
 
+    /**
+     * 是否为Read操作
+     *
+     * @param string $sql SQL语句
+     *
+     * @return bool
+     */
+    private function isReadOperation($sql) {
+        $sqlPrefix = strtoupper(substr(ltrim($sql), 0, 4));
+        foreach ($this->_readSqlPrefix as $prefix) {
+            if ($sqlPrefix == $prefix) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

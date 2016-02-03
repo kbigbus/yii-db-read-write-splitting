@@ -62,7 +62,7 @@
  * @package system.db
  * @since 1.0
  */
-class MCDbCommand extends CComponent {
+class MCDbCommand extends CDbCommand {
 
     /**
      * @var array the parameters (name=>value) to be bound to the current query.
@@ -76,13 +76,11 @@ class MCDbCommand extends CComponent {
     private $_paramLog = array();
     private $_query;
     private $_fetchMode = array(PDO::FETCH_ASSOC);
-
-    /**
-     * @var array 数据库读操作的SQL前缀（前4个字符）
-     */
-    private $_readSqlPrefix = array(
-        'SELE', 'DESC', 'SHOW'
-    );
+    private $_readSqlPrefix = array('SELE'); //数据库读操作的SQL前缀（前4个字符）
+    private $_writeSqlPrefix = array('INSERT', 'UPDATE', 'DELETE'); ////数据库写操作的SQL前缀（前6个字符）
+    private $_writeCachePrefix = 'mdb_write_table_';//读表缓存key前缀
+    private $_writeCacheTime = 120;//默认两分钟
+    
 
     /**
      * Constructor.
@@ -174,8 +172,13 @@ class MCDbCommand extends CComponent {
             $this->_text = preg_replace('/{{(.*?)}}/', $this->_connection->tablePrefix . '\1', $value);
         else
             $this->_text = $value;
-        if ($this->isReadOperation($this->_text) && isset($this->_dblist['slave'])) {
-            $this->_connection = $this->_dblist['slave'];
+        if($this->_text) {
+            if ($this->isReadOperation($this->_text)) {
+                if(isset($this->_dblist['slave']))
+                    $this->_connection = $this->_dblist['slave'];
+            } else {
+                $this->checkWriteOperation($this->_text);
+            }
         }
         $this->cancel();
         return $this;
@@ -1496,13 +1499,74 @@ class MCDbCommand extends CComponent {
      */
     private function isReadOperation($sql) {
         $sqlPrefix = strtoupper(substr(ltrim($sql), 0, 4));
+        $isRead = false;
         foreach ($this->_readSqlPrefix as $prefix) {
             if ($sqlPrefix == $prefix) {
-                return true;
+                $isRead = true;
+                break;
+            }
+        }
+        $fromStr = 'from';
+        if ($isRead && stripos($sql, $fromStr) !== false) {
+            $splitList = explode(' ', trim(mb_substr($sql, stripos($sql, $fromStr) + strlen($fromStr))));
+            $tableList = isset($splitList[0]) ? explode(',', $splitList[0]) : array();
+            foreach ($tableList as $table) {
+                if ($this->getWriteOperation($table)) {
+                    $isRead = false;
+                    break;
+                }
             }
         }
 
-        return false;
+        return $isRead;
     }
 
+    /**
+     * 是否为继续主库操作  开启cache缓存才行
+     *
+     * @param string $sql SQL语句
+     *
+     * @return bool
+     */
+    private function checkWriteOperation($sql) {
+        if (!isset(Yii::app()->cache)) return false;
+        $cacheModel = Yii::app()->cache;
+        $sqlPrefix = strtoupper(substr(trim($sql), 0, 6));
+        $isWrite = false;
+        foreach ($this->_writeSqlPrefix as $prefix) {
+            if ($sqlPrefix == $prefix) {
+                $isWrite = true;
+                break;
+            }
+        }
+        if ($isWrite) {
+            switch ($sqlPrefix) {//获取表名称
+                case $this->_writeSqlPrefix[0]://insert
+                    $splitList = explode(' ', mb_substr($sql, stripos($sql, $this->_writeSqlPrefix[0]) + strlen($this->_writeSqlPrefix[0])));
+                    break;
+                case $this->_writeSqlPrefix[1]://update
+                    $splitList = explode(' ', $sql);
+                    break;
+                case $this->_writeSqlPrefix[2]://delete
+                    $splitList = explode(' ', mb_substr($sql, stripos($sql, $this->_writeSqlPrefix[2]) + strlen($this->_writeSqlPrefix[2])));
+                    break;
+            }
+            if(!$splitList) return false;
+            $splitList = array_values(array_filter($splitList));
+            $table = trim(trim($splitList[1]), '`');
+            if(!$table) return false;
+            $cacheModel->set($this->_writeCachePrefix.$table, 1, $this->_writeCacheTime);
+        }
+    }
+    
+    /**
+     * 获取写表缓存
+     * @param type $table
+     */
+    private function getWriteOperation($table) {
+        if (!isset(Yii::app()->cache)) return false;
+        $cacheModel = Yii::app()->cache;
+        $cacheKey = $this->_writeCachePrefix . trim($table, '`');
+        return $cacheModel->get($cacheKey);
+    }
 }
