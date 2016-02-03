@@ -3,6 +3,7 @@
 这是一个供Yii Framework（以下统称Yii）使用的数据库读写分离组件，使用此组件只需通过简单的配置，即可使你的应用自动的实现读写分离。
 
 ## 开始之前
+该组件是在 原有开源项目基础上优化得来的，原项目地址 https://github.com/devtoby/yii-db-read-write-splitting
 
 Yii读写分离包含两个组件：
 

@@ -1,4 +1,5 @@
 <?php
+
 /**
  * 扩展后支持主从的数据库操作类
  *
@@ -8,14 +9,23 @@
  * Date: 14-6-14
  * Author: Toby<quflylong@qq.com>
  */
+class MDbConnection extends CDbConnection {
 
-class MDbConnection extends CDbConnection
-{
     /**
      * @var int 连接数据库超时时间
      */
     public $timeout = 3;
-
+    
+    /**
+     * @var bool 是否开启从库缓存检查
+     */
+    public $checkSlave = true;
+    
+    /**
+     * @var int 设置检查从库是否正常的缓存时间 秒
+     */
+    public $checkSlaveTime = 10;
+    
     /**
      * @var array 从库配置数组
      * @example array( array('connectionString'=>'mysql://<slave01>'), array('connectionString'=>'mysql://<slave02>'),...)
@@ -25,7 +35,7 @@ class MDbConnection extends CDbConnection
     /**
      * @var bool 是否开启从库自动继承主库的部分属性
      */
-    public $isAutoExtendsProperty  = true;
+    public $isAutoExtendsProperty = true;
 
     /**
      * @var bool 强制使用主库
@@ -57,16 +67,12 @@ class MDbConnection extends CDbConnection
      * @param string $sql
      * @return CDbCommand
      */
-    public function createCommand($sql = null)
-    {
-        if (
-            !$this->_forceUseMaster && $this->slaves && is_string($sql) && !$this->getCurrentTransaction()
-            && $this->isReadOperation($sql) && ($slave = $this->getSlave())
-        ) {
-            return $slave->createCommand($sql);
+    public function createCommand($sql = null) {
+        $dbConnect = array('master' => $this);
+        if (!$this->_forceUseMaster && $this->slaves && !$this->getCurrentTransaction() && ($slave = $this->getSlave())) {
+            $dbConnect['slave'] = $this->_slave;
         }
-
-        return parent::createCommand($sql);
+        return new MCDbCommand($dbConnect, $sql);
     }
 
     /**
@@ -75,8 +81,7 @@ class MDbConnection extends CDbConnection
      *
      * @param bool $value
      */
-    public function forceUseMaster($value = false)
-    {
+    public function forceUseMaster($value = false) {
         $this->_forceUseMaster = $value;
     }
 
@@ -86,8 +91,7 @@ class MDbConnection extends CDbConnection
      * @param boolean $value whether to open or close DB connection
      * @throws CException if connection fails
      */
-    public function setActive($value)
-    {
+    public function setActive($value) {
         if ($value != $this->getActive() && $value) {
             $this->setAttribute(PDO::ATTR_TIMEOUT, $this->timeout);
         }
@@ -100,12 +104,12 @@ class MDbConnection extends CDbConnection
      *
      * @return MDbSlaveConnection
      */
-    private function getSlave()
-    {
+    private function getSlave() {
         if (!$this->_slave && $this->slaves && is_array($this->slaves)) {
-            shuffle($this->slaves);
-
+            shuffle($this->slaves);//随机获取从库
+            
             foreach ($this->slaves as $slaveConfig) {
+                if($this->checkSlaveDb($slaveConfig['connectionString'])) continue; //检查是否在故障期间
                 if ($this->isAutoExtendsProperty) {
                     // 自动属性继承
                     foreach ($this->_autoExtendsProperty as $property) {
@@ -113,10 +117,7 @@ class MDbConnection extends CDbConnection
                     }
                 }
 
-                $slaveConfig['class'] = 'MDbSlaveConnection';
-                $slaveConfig['autoConnect'] = false;
-                $slaveConfig['isNeedReadCheck'] = false; // 因为在路由时已经检查过了
-
+                $slaveConfig['class'] = 'MDbConnection';
                 try {
                     $slave = Yii::createComponent($slaveConfig);
 
@@ -126,6 +127,7 @@ class MDbConnection extends CDbConnection
                     $this->_slave = $slave;
                     break;
                 } catch (Exception $e) {
+                    $this->checkSlaveDb($slaveConfig['connectionString'], true);
                     Yii::log("Slave database connection failed! Connection string:{$slaveConfig['connectionString']}", 'warning');
                 }
             }
@@ -135,21 +137,22 @@ class MDbConnection extends CDbConnection
     }
 
     /**
-     * 是否为Read操作
-     *
-     * @param string $sql SQL语句
-     *
+     * 检查从库是否需要检查 写入读取缓存
+     * 
+     * @param string $connectionString 从库链接配置
+     * @param bool $set 是否set 缓存   true设置缓存 false获取缓存
+     * 
      * @return bool
      */
-    private function isReadOperation($sql)
-    {
-        $sqlPrefix = strtoupper(substr(ltrim($sql), 0, 4));
-        foreach ($this->_readSqlPrefix as $prefix) {
-            if ($sqlPrefix == $prefix) {
-                return true;
-            }
+    private function checkSlaveDb($connectionString, $set=false){
+        if(!$this->checkSlave) return false;
+        if(!isset(Yii::app()->cache)) return false;
+        $cacheKeyFix = 'slave_db_connect_fail_keyfix_'.$connectionString;
+        if(!$set) {//获取 存在值则说明有过失败情况
+            return Yii::app()->cache->get($cacheKeyFix);
+        } else {//设置
+            return Yii::app()->cache->set($cacheKeyFix, 1, $this->checkSlaveTime);
         }
-
-        return false;
     }
+
 }
