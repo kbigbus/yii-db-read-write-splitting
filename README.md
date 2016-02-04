@@ -77,7 +77,11 @@ very easy, 将down下来的组件包中的`MDbConnection.php`、`MCDbCommand.php
 )
 ```
 
-***注意：slaves中的配置必须是二维数组，可配置的值为CDbConnection中支持的全部值（属性）。***
+***
+注意：
+1、slaves中的配置必须是二维数组，可配置的值为CDbConnection中支持的全部值（属性）。
+2、未添加 cackeKeep 配置时，主从延时问题会出现。
+***
 
 ### 配置继承
 
@@ -118,7 +122,7 @@ very easy, 将down下来的组件包中的`MDbConnection.php`、`MCDbCommand.php
 
 如果需要临时关闭从库查询，或者没有从库只需注释掉slaves部分的配置即可。
 
-###针对<a href="https://github.com/devtoby/yii-db-read-write-splitting">原有项目</a>的优化点
+###<span style="color:red">针对<a href="https://github.com/devtoby/yii-db-read-write-splitting">原有项目</a>的优化点</span>
 
 1、支持在ActiveRecord及QueryBuilder中的读写自动分离！！ （<a href="https://github.com/devtoby/yii-db-read-write-splitting">原有项目</a>也是这样写的，但是并没有支持）这也意味着如果用到多种数据查询方式的也可以直接使用了。当然，最好先测试下
 
