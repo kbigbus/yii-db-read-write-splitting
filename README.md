@@ -78,8 +78,8 @@ very easy, 将down下来的组件包中的`MDbConnection.php`、`MCDbCommand.php
 ```
 
 ***
-注意：
-1、slaves中的配置必须是二维数组，可配置的值为CDbConnection中支持的全部值（属性）。
+注意：<br>
+1、slaves中的配置必须是二维数组，可配置的值为CDbConnection中支持的全部值（属性）。<br>
 2、未添加 cackeKeep 配置时，主从延时问题会出现。
 ***
 
@@ -128,7 +128,7 @@ very easy, 将down下来的组件包中的`MDbConnection.php`、`MCDbCommand.php
 
 2、优化主从同步延时导致的问题，但是需要在main.php  components下添加 cacheKeep 项配置如下
 ```php
-
+...
 'components'=>array(
     ...
     /*添加缓存配置*/
@@ -142,4 +142,4 @@ very easy, 将down下来的组件包中的`MDbConnection.php`、`MCDbCommand.php
 
 ## 反馈问题
 
-[快来提一个Issue吧。](https://github.com/devtoby/yii-db-read-write-splitting/issues/new)
+[快来提一个Issue吧。](https://github.com/kbigbus/yii-db-read-write-splitting/issues/new)
