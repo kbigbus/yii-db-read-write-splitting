@@ -12,7 +12,7 @@ Yii读写分离包含两个组件：
 2. `MCDbCommand` 重写的Command组件，联合MDbConnection使用
 3. `MDbSlaveConnection` 从库（Readonly）组件  （未使用，备用参考）
 
-原有项目有说明 自动分离 和 手动分离， 然而 手动分离 实际上是多加了一个数据库配置实现的，不做说明，这里主要介绍自动分离
+<a href="https://github.com/devtoby/yii-db-read-write-splitting">原有项目</a>有说明 自动分离 和 手动分离， 然而 手动分离 实际上是多加了一个数据库配置实现的，不做说明，这里主要介绍自动分离
 
 ### 安装步骤
 
@@ -66,15 +66,15 @@ very easy, 将down下来的组件包中的`MDbConnection.php`、`MCDbCommand.php
 
 在 components 下添加 cacheKeep 配置，如下：
 ```php
+...
+'components'=>array(
     ...
-    'components'=>array(
-        ...
-        /*添加缓存配置*/
-        'cacheKeep' => array(
-            'class' => 'CFileCache',//单机文件缓存
-        ),
-        ...
-    )
+    /*添加缓存配置*/
+    'cacheKeep' => array(
+        'class' => 'CFileCache',//单机文件缓存
+    ),
+    ...
+)
 ```
 
 ***注意：slaves中的配置必须是二维数组，可配置的值为CDbConnection中支持的全部值（属性）。***
@@ -118,21 +118,21 @@ very easy, 将down下来的组件包中的`MDbConnection.php`、`MCDbCommand.php
 
 如果需要临时关闭从库查询，或者没有从库只需注释掉slaves部分的配置即可。
 
-###针对原有项目的优化点
+###针对<a href="https://github.com/devtoby/yii-db-read-write-splitting">原有项目</a>的优化点
 
-1、支持在ActiveRecord及QueryBuilder中的读写自动分离！！ （原有项目也是这样写的，但是并没有支持）这也意味着如果用到多种数据查询方式的也可以直接使用了。当然，最好先测试下
+1、支持在ActiveRecord及QueryBuilder中的读写自动分离！！ （<a href="https://github.com/devtoby/yii-db-read-write-splitting">原有项目</a>也是这样写的，但是并没有支持）这也意味着如果用到多种数据查询方式的也可以直接使用了。当然，最好先测试下
 
 2、优化主从同步延时导致的问题，但是需要在main.php  components下添加 cacheKeep 项配置如下
 ```php
 
-    'components'=>array(
-        ...
-        /*添加缓存配置*/
-        'cacheKeep' => array(
-            'class' => 'CFileCache',//单机文件缓存
-        ),
-        ...
-    )
+'components'=>array(
+    ...
+    /*添加缓存配置*/
+    'cacheKeep' => array(
+        'class' => 'CFileCache',//单机文件缓存
+    ),
+    ...
+)
 ```
 若是单台机，可以直接用文件缓存; 若是分布式，请用redis/memcache进行缓存，否则会出现问题
 
