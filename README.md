@@ -140,6 +140,3 @@ very easy, 将down下来的组件包中的`MDbConnection.php`、`MCDbCommand.php
 ```
 若是单台机，可以直接用文件缓存; 若是分布式，请用redis/memcache进行缓存，否则会出现问题
 
-## 反馈问题
-
-[快来提一个Issue吧。](https://github.com/kbigbus/yii-db-read-write-splitting/issues/new)
