@@ -40,24 +40,24 @@ very easy, 将down下来的组件包中的`MDbConnection.php`、`MCDbCommand.php
 ...
 'db'=>array(
     'class' => 'MDbConnection', // 指定使用读写分离Class
-    'connectionString' => 'mysql:host=192.168.10.203;dbname=test', // 主库配置
-    'username' => 'admin',
-    'password' => '123456',
+    'connectionString' => 'mysql:host=192.168.10.100;dbname=test', // 主库配置
+    'username' => 'appuser',
+    'password' => 'apppassword',
     'charset' => 'utf8',
-    'tablePrefix' => 'bage_',
+    'tablePrefix' => 'app_',
     'timeout' => 3, // 增加数据库连接超时时间，默认3s
     'checkSlave' => true, //是否开启从库缓存检查  需开启 cacheKeep 配置
     'checkSlaveTime'=> 60, //从库链接失败后，再次尝试链接从库的时间间隔  需开启 cacheKeep 配置
     'slaves' => array(//从库配置
         array(
             'connectionString' => 'mysql:host=192.168.10.123;dbname=test',
-            'username' => 'root',
-            'password' => '123456',
+            'username' => 'appuser',
+            'password' => 'apppassword',
         ),
         array(
             'connectionString' => 'mysql:host=192.168.10.248;dbname=test',
-            'username' => 'root',
-            'password' => '445566a',
+            'username' => 'appuser',
+            'password' => 'apppassword',
         ),
     ),
 ),
@@ -101,19 +101,22 @@ very easy, 将down下来的组件包中的`MDbConnection.php`、`MCDbCommand.php
 ...
 'db'=>array(
     'class' => 'MDbConnection', // 指定使用读写分离Class
-    'connectionString' => 'mysql:host=192.168.10.100;dbname=testDb', // 主库配置
+    'connectionString' => 'mysql:host=192.168.10.100;dbname=test', // 主库配置
     'username' => 'appuser',
     'password' => 'apppassword',
     'charset' => 'utf8',
     'tablePrefix' => 'app_',
-    'slaves' => array(
+    'timeout' => 3, // 增加数据库连接超时时间，默认3s
+    'checkSlave' => true, //是否开启从库缓存检查  需开启 cacheKeep 配置
+    'checkSlaveTime'=> 60, //从库链接失败后，再次尝试链接从库的时间间隔  需开启 cacheKeep 配置
+    'slaves' => array(//从库配置
         array(
-            'connectionString' => 'mysql:host=192.168.10.101;dbname=testDb',
-        ), // 从库 1
+            'connectionString' => 'mysql:host=192.168.10.123;dbname=test',
+        ),
         array(
-            'connectionString' => 'mysql:host=192.168.10.102;dbname=testDb',
-        ), // 从库 2
-    ), // 从库配置
+            'connectionString' => 'mysql:host=192.168.10.248;dbname=test',
+        ),
+    ),
 ),
 ...
 ```
@@ -122,7 +125,7 @@ very easy, 将down下来的组件包中的`MDbConnection.php`、`MCDbCommand.php
 
 如果需要临时关闭从库查询，或者没有从库只需注释掉slaves部分的配置即可。
 
-###<font color=red>针对<a href="https://github.com/devtoby/yii-db-read-write-splitting">原有项目</a>的优化点</font>
+###针对<a href="https://github.com/devtoby/yii-db-read-write-splitting">原有项目</a>的优化点
 
 1、支持在ActiveRecord及QueryBuilder中的读写自动分离！！ （<a href="https://github.com/devtoby/yii-db-read-write-splitting">原有项目</a>也是这样写的，但是并没有支持）这也意味着如果用到多种数据查询方式的也可以直接使用了。当然，最好先测试下
 
