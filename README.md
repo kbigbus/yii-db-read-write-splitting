@@ -66,10 +66,15 @@ very easy, 将down下来的组件包中的`MDbConnection.php`、`MCDbCommand.php
 
 在 components 下添加 cacheKeep 配置，如下：
 ```php
-    /*添加缓存配置*/
-    'cacheKeep' => array(
-        'class' => 'CFileCache',//单机文件缓存
-    ),
+    ...
+    'components'=>array(
+        ...
+        /*添加缓存配置*/
+        'cacheKeep' => array(
+            'class' => 'CFileCache',//单机文件缓存
+        ),
+        ...
+    )
 ```
 
 ***注意：slaves中的配置必须是二维数组，可配置的值为CDbConnection中支持的全部值（属性）。***
@@ -116,13 +121,19 @@ very easy, 将down下来的组件包中的`MDbConnection.php`、`MCDbCommand.php
 ###针对原有项目的优化点
 
 1、支持在ActiveRecord及QueryBuilder中的读写自动分离！！ （原有项目也是这样写的，但是并没有支持）这也意味着如果用到多种数据查询方式的也可以直接使用了。当然，最好先测试下
+
 2、优化主从同步延时导致的问题，但是需要在main.php  components下添加 cacheKeep 项配置如下
+```php
+
     'components'=>array(
+        ...
         /*添加缓存配置*/
         'cacheKeep' => array(
             'class' => 'CFileCache',//单机文件缓存
         ),
+        ...
     )
+```
 若是单台机，可以直接用文件缓存; 若是分布式，请用redis/memcache进行缓存，否则会出现问题
 
 ## 反馈问题
