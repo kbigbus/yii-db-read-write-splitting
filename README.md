@@ -3,33 +3,20 @@
 这是一个供Yii Framework（以下统称Yii）使用的数据库读写分离组件，使用此组件只需通过简单的配置，即可使你的应用自动的实现读写分离。
 
 ## 开始之前
-该组件是在 原有开源项目基础上优化得来的，原项目地址 https://github.com/devtoby/yii-db-read-write-splitting
+
+该组件是在 原开源项目基础上优化得来的，原项目地址 https://github.com/devtoby/yii-db-read-write-splitting
 
 Yii读写分离包含两个组件：
 
 1. `MDbConnection` 读写自动路由组件，使用这个名字更希望应用使用这个组件来替代Yii默认的CDbConnection
-2. `MDbSlaveConnection` 从库（Readonly）组件
+2. `MCDbCommand` 重写的Command组件，联合MDbConnection使用
+3. `MDbSlaveConnection` 从库（Readonly）组件  （未使用，备用参考）
 
-一般在PHP项目中常用的实现读写分离的方法有两种：
-
-1. **自动分离** 由系统来决定读与写应该在哪个数据库上，对工程师透明，正常情况下既有代码无需修改即可使用，可以做到完全的读写分离，而且从库故障时可以自动切换在主库读取，推荐使用；
-2. **手动分离** 由工程师来决定读与写应该在主还是从数据库上，工程师在开发时必须注意着主从的存在及其所带来的影响，但可能出现主库读取过度的问题（根据以往经验很多人会将大部分的读写都放在了主库上）。
-
-下面将分别对两种实现读写分离的方法进行说明。
-
-## 自动分离
-
-自动分离无需指定是使用主库还是从库，并支持在`ActiveRecord`及`QueryBuilder`中的读写自动分离。支持多从库配置，每个请求只会落在随机的一个从库上，该从库为配置里面随机的一个，无需担心配置在前面的从库压力会过大。
-
-对于大部分业务来说切换为自动读写分离后不会对既有逻辑产生影响，可以做到平滑的切换，但对于写完立即读可能会存在读不到数据的情况，如有这样的写法请修改，仍然建议使用前Review自己的代码。
+原有项目有说明 自动分离 和 手动分离， 然而 手动分离 实际上是多加了一个数据库配置实现的，不做说明，这里主要介绍自动分离
 
 ### 安装步骤
 
-安装组件之前当然需要先把组件down一份到你的应用的`components`目录里面去，关于怎么down这个就不做介绍了，下面从放置组件开始。
-
-#### 放置组件
-
-将down下来的组件包中的`MDbConnection.php`、`MDbSlaveConnection.php`复制到你的应用组件目录中，正常来说路径应该在`protected/components`目录中。
+very easy, 将down下来的组件包中的`MDbConnection.php`、`MCDbCommand.php`复制到你的应用组件目录中，正常来说路径应该在`protected/components`目录中。
 
 #### 修改Yii应用的配置文件
 
@@ -53,26 +40,36 @@ Yii读写分离包含两个组件：
 ...
 'db'=>array(
     'class' => 'MDbConnection', // 指定使用读写分离Class
-    'connectionString' => 'mysql:host=192.168.10.100;dbname=testDb', // 主库配置
-    'username' => 'appuser',
-    'password' => 'apppassword',
+    'connectionString' => 'mysql:host=192.168.10.203;dbname=test', // 主库配置
+    'username' => 'admin',
+    'password' => '123456',
     'charset' => 'utf8',
-    'tablePrefix' => 'app_',
+    'tablePrefix' => 'bage_',
     'timeout' => 3, // 增加数据库连接超时时间，默认3s
-    'slaves' => array(
+    'checkSlave' => true, //是否开启从库缓存检查  需开启 cacheKeep 配置
+    'checkSlaveTime'=> 60, //从库链接失败后，再次尝试链接从库的时间间隔  需开启 cacheKeep 配置
+    'slaves' => array(//从库配置
         array(
-            'connectionString' => 'mysql:host=192.168.10.101;dbname=testDb',
-            'username' => 'appuser',
-            'password' => 'apppassword',
-        ), // 从库 1
+            'connectionString' => 'mysql:host=192.168.10.123;dbname=test',
+            'username' => 'root',
+            'password' => '123456',
+        ),
         array(
-            'connectionString' => 'mysql:host=192.168.10.102;dbname=testDb',
-            'username' => 'appuser',
-            'password' => 'apppassword',
-        ), // 从库 2
-    ), // 从库配置
+            'connectionString' => 'mysql:host=192.168.10.248;dbname=test',
+            'username' => 'root',
+            'password' => '445566a',
+        ),
+    ),
 ),
 ...
+```
+
+在 components 下添加 cacheKeep 配置，如下：
+```php
+    /*添加缓存配置*/
+    'cacheKeep' => array(
+        'class' => 'CFileCache',//单机文件缓存
+    ),
 ```
 
 ***注意：slaves中的配置必须是二维数组，可配置的值为CDbConnection中支持的全部值（属性）。***
@@ -116,63 +113,17 @@ Yii读写分离包含两个组件：
 
 如果需要临时关闭从库查询，或者没有从库只需注释掉slaves部分的配置即可。
 
-### 注意
+###针对原有项目的优化点
 
-* 在所有从库无法连接时，读操作会在主库上进行，反之则不会；
-* 进行写操作（在主库）后，立即读数据（在从库），可能会存在延时问题，在使用时请避免此类写法。
-
-## 手动分离
-
-在自动分离中，数据库的读写对工程师是透明的，因此会在开发过程中出现未考虑主从延时的问题，导致一些潜在的漏洞。相比之下手动分离则提醒着工程师时刻注意着主从的存在。
-
-### 安装步骤
-
-同自动分离部分，你首先也需要down一份组件下来。
-
-#### 放置组件
-
-手动分离只依赖组件包中的`MDbSlaveConnection.php`，将其复制到你的应用组件目录中，正常来说路径应该在`protected/components`目录中。
-
-#### 修改Yii应用的配置文件
-
-修改Yii应用的配置文件，默认的配置文件为`protected/main.php`，然后在 components 中 db 的配置后增加从库组件的配置，例如：
-
-```php
-...
-'dbRead'=>array(
-    'class' => 'MDbSlaveConnection',
-    'connectionString' => 'mysql:host=192.168.10.101;dbname=testDb',
-    'username' => 'appuser',
-    'password' => 'apppassword',
-    'charset' => 'utf8',
-    'tablePrefix' => 'app_',
-),
-...
-```
-
-**手动分离中，从库目前不会继承主库的配置哦！**
-
-#### 使用示例
-
-在应用中进行读操作
-
-```php
-Yii::app()->dbRead->createCommand()
-    ->select('id, username, email')
-    ->from('{{user}}')
-    ->where('id=:id', array(':id'=>$id))
-    ->queryRow();
-```
-
-在应用中进行写操作
-
-```php
-Yii::app()->db->createCommand()
-    ->insert('{{user}}', array(
-        'username' => 'devtoby',
-        'email' => 'quflylong@qq.com',
-    ));
-```
+1、支持在ActiveRecord及QueryBuilder中的读写自动分离！！ （原有项目也是这样写的，但是并没有支持）这也意味着如果用到多种数据查询方式的也可以直接使用了。当然，最好先测试下
+2、优化主从同步延时导致的问题，但是需要在main.php  components下添加 cacheKeep 项配置如下
+    'components'=>array(
+        /*添加缓存配置*/
+        'cacheKeep' => array(
+            'class' => 'CFileCache',//单机文件缓存
+        ),
+    )
+若是单台机，可以直接用文件缓存; 若是分布式，请用redis/memcache进行缓存，否则会出现问题
 
 ## 反馈问题
 

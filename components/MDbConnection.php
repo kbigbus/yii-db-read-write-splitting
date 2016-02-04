@@ -31,6 +31,11 @@ class MDbConnection extends CDbConnection {
      * @example array( array('connectionString'=>'mysql://<slave01>'), array('connectionString'=>'mysql://<slave02>'),...)
      */
     public $slaves = array();
+    
+    /**
+     * @var MDbConnection
+     */
+    public $_slave;
 
     /**
      * @var bool 是否开启从库自动继承主库的部分属性
@@ -41,11 +46,6 @@ class MDbConnection extends CDbConnection {
      * @var bool 强制使用主库
      */
     private $_forceUseMaster = false;
-
-    /**
-     * @var MDbConnection
-     */
-    private $_slave;
 
     /**
      * @var array 从库自动继承主库的属性
@@ -68,11 +68,10 @@ class MDbConnection extends CDbConnection {
      * @return CDbCommand
      */
     public function createCommand($sql = null) {
-        $dbConnect = array('master' => $this);
-        if (!$this->_forceUseMaster && $this->slaves && !$this->getCurrentTransaction() && ($slave = $this->getSlave())) {
-            $dbConnect['slave'] = $this->_slave;
+        if (!$this->_forceUseMaster && $this->slaves && !$this->getCurrentTransaction()) {
+            $this->getSlave();
         }
-        return new MCDbCommand($dbConnect, $sql);
+        return new MCDbCommand($this, $sql);
     }
 
     /**
@@ -145,8 +144,8 @@ class MDbConnection extends CDbConnection {
      */
     private function checkSlaveDb($connectionString, $set=false){
         if(!$this->checkSlave) return false;
-        if(!isset(Yii::app()->cache)) return false;
-        $cacehModel = Yii::app()->cache;
+        if(!isset(Yii::app()->cacheKeep)) return false;
+        $cacehModel = Yii::app()->cacheKeep;
         $cacheKeyFix = 'slave_db_connect_fail_keyfix_'.$connectionString;
         if(!$set) {//获取 存在值则说明有过失败情况
             return $cacehModel->get($cacheKeyFix);

@@ -70,7 +70,6 @@ class MCDbCommand extends CDbCommand {
      */
     public $params = array();
     private $_connection;
-    private $_dblist;
     private $_text;
     private $_statement;
     private $_paramLog = array();
@@ -78,13 +77,12 @@ class MCDbCommand extends CDbCommand {
     private $_fetchMode = array(PDO::FETCH_ASSOC);
     private $_readSqlPrefix = array('SELE'); //数据库读操作的SQL前缀（前4个字符）
     private $_writeSqlPrefix = array('INSERT', 'UPDATE', 'DELETE'); ////数据库写操作的SQL前缀（前6个字符）
-    private $_writeCachePrefix = 'mdb_write_table_';//读表缓存key前缀
-    private $_writeCacheTime = 120;//默认两分钟
-    
+    private $_writeCachePrefix = 'mdb_write_table_'; //读表缓存key前缀
+    private $_writeCacheTime = 120; //默认两分钟
 
     /**
      * Constructor.
-     * @param array CDbConnection $connection the database connection
+     * @param CDbConnection $connection the database connection
      * @param mixed $query the DB query to be executed. This can be either
      * a string representing a SQL statement, or an array whose name-value pairs
      * will be used to set the corresponding properties of the created command object.
@@ -103,9 +101,9 @@ class MCDbCommand extends CDbCommand {
      * {@link setFetchMode FetchMode}. See {@link http://www.php.net/manual/en/function.PDOStatement-setFetchMode.php}
      * for more details.
      */
-    public function __construct($connection, $query = null) {
-        $this->_dblist = is_array($connection) ? $connection : array('master' => $connection);
-        $this->_connection = $this->_dblist['master'];
+
+    public function __construct(CDbConnection $connection, $query = null) {
+        $this->_connection = $connection;
         if (is_array($query)) {
             foreach ($query as $name => $value)
                 $this->$name = $value;
@@ -172,10 +170,10 @@ class MCDbCommand extends CDbCommand {
             $this->_text = preg_replace('/{{(.*?)}}/', $this->_connection->tablePrefix . '\1', $value);
         else
             $this->_text = $value;
-        if($this->_text) {
+        if ($this->_text) {
             if ($this->isReadOperation($this->_text)) {
-                if(isset($this->_dblist['slave']))
-                    $this->_connection = $this->_dblist['slave'];
+                if (isset($this->_connection->_slave) && $this->_connection->_slave)
+                    $this->_connection = $this->_connection->_slave;
             } else {
                 $this->checkWriteOperation($this->_text);
             }
@@ -1382,7 +1380,7 @@ class MCDbCommand extends CDbCommand {
         $operator = strtoupper($conditions[0]);
         if ($operator === 'OR' || $operator === 'AND') {
             $parts = array();
-            for ($i = 1; $i < $n;  ++$i) {
+            for ($i = 1; $i < $n; ++$i) {
                 $condition = $this->processConditions($conditions[$i]);
                 if ($condition !== '')
                     $parts[] = '(' . $condition . ')';
@@ -1517,7 +1515,6 @@ class MCDbCommand extends CDbCommand {
                 }
             }
         }
-
         return $isRead;
     }
 
@@ -1529,8 +1526,9 @@ class MCDbCommand extends CDbCommand {
      * @return bool
      */
     private function checkWriteOperation($sql) {
-        if (!isset(Yii::app()->cache)) return false;
-        $cacheModel = Yii::app()->cache;
+        if (!isset(Yii::app()->cacheKeep))
+            return false;
+        $cacheModel = Yii::app()->cacheKeep;
         $sqlPrefix = strtoupper(substr(trim($sql), 0, 6));
         $isWrite = false;
         foreach ($this->_writeSqlPrefix as $prefix) {
@@ -1551,22 +1549,26 @@ class MCDbCommand extends CDbCommand {
                     $splitList = explode(' ', mb_substr($sql, stripos($sql, $this->_writeSqlPrefix[2]) + strlen($this->_writeSqlPrefix[2])));
                     break;
             }
-            if(!$splitList) return false;
+            if (!$splitList)
+                return false;
             $splitList = array_values(array_filter($splitList));
             $table = trim(trim($splitList[1]), '`');
-            if(!$table) return false;
-            $cacheModel->set($this->_writeCachePrefix.$table, 1, $this->_writeCacheTime);
+            if (!$table)
+                return false;
+            $cacheModel->set($this->_writeCachePrefix . $table, 1, $this->_writeCacheTime);
         }
     }
-    
+
     /**
      * 获取写表缓存
      * @param type $table
      */
     private function getWriteOperation($table) {
-        if (!isset(Yii::app()->cache)) return false;
-        $cacheModel = Yii::app()->cache;
+        if (!isset(Yii::app()->cacheKeep))
+            return false;
+        $cacheModel = Yii::app()->cacheKeep;
         $cacheKey = $this->_writeCachePrefix . trim($table, '`');
         return $cacheModel->get($cacheKey);
     }
+
 }
